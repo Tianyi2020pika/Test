@@ -1,0 +1,276 @@
+<!-- ... existing code ... -->
+    // ==================== 3. 应用状态与本地持久化 ====================
+    const STORAGE_KEY = 'habitmark_ios_data_v1';
+
+    // 生成测试习惯全年模拟打卡记录（2026年1月至今，今日完成 1/3）
+    function generateTestHabitRecords() {
+      const records = {};
+      const now = new Date();
+      const year = now.getFullYear();
+      const todayStr = getDateStr(now);
+
+      // 遍历今年1月1日到昨天，生成规律且自然的打卡记录
+      const start = new Date(year, 0, 1);
+      const cursor = new Date(start);
+      let dayIndex = 0;
+
+      while (cursor < now) {
+        const dStr = getDateStr(cursor);
+        if (dStr !== todayStr) {
+          // 约 75% 的日子有打卡，部分达到 3/3 满额，部分为 1~2 次
+          const seed = (dayIndex * 17 + cursor.getMonth() * 7 + cursor.getDate() * 3) % 10;
+          if (seed < 5) {
+            records[dStr] = 3;
+          } else if (seed < 8) {
+            records[dStr] = (seed % 2) + 1;
+          }
+        }
+        cursor.setDate(cursor.getDate() + 1);
+        dayIndex++;
+      }
+
+      // 今日默认完成 1/3，方便直观展示左侧 1/3 晴空蓝进度填充与右侧 "1" 打卡钮
+      records[todayStr] = 1;
+      return records;
+    }
+
+    function createDefaultState() {
+      const todayStr = getDateStr();
+      const now = new Date();
+      const timeStr = `${todayStr} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      return {
+        categories: ['全部', '健康', '工作', '赚钱', '运动'],
+        activeCategory: '全部',
+        viewMode: 'simple', // 'simple' | 'week' | 'month' | 'year'
+        compactMode: false,
+        habits: [
+          {
+            id: 'h_demo_water',
+            name: '每日喝水',
+            category: '健康',
+            dailyTarget: 3,
+            weeklyTarget: 21,
+            unit: '次',
+            color: 'blue',
+            icon: 'water',
+            records: generateTestHabitRecords()
+          }
+        ],
+        logs: [
+          {
+            id: 'l_demo_1',
+            time: timeStr,
+            habitName: '每日喝水',
+            color: 'blue',
+            text: '完成 1 次打卡 (1/3)'
+          }
+        ]
+      };
+    }
+
+    function createEmptyState() {
+      return {
+        categories: ['全部', '健康', '工作', '赚钱', '运动'],
+        activeCategory: '全部',
+        viewMode: 'simple',
+        compactMode: false,
+        habits: [],
+        logs: []
+      };
+    }
+
+    let state = loadState();
+// ... existing code ... -->
+        <button onclick="openImportModal()" class="w-full px-4 py-3.5 flex items-center justify-between text-left active:bg-gray-50 transition">
+          <div>
+            <div class="text-[15px] font-medium text-[#111111]">恢复备份数据</div>
+            <div class="text-[12px] text-gray-400">粘贴之前导出的 JSON 数据进行恢复</div>
+          </div>
+          <span class="text-gray-400">›</span>
+        </button>
+
+        <button onclick="restoreDemoHabit()" class="w-full px-4 py-3.5 flex items-center justify-between text-left active:bg-gray-50 transition">
+          <div>
+            <div class="text-[15px] font-medium text-[#4A89F3]">加载测试任务（每日喝水）</div>
+            <div class="text-[12px] text-gray-400">生成含全年打卡数据的示例习惯，方便预览各视图</div>
+          </div>
+          <span class="text-gray-400">›</span>
+        </button>
+
+        <button onclick="confirmResetDemo()" class="w-full px-4 py-3.5 flex items-center justify-between text-left active:bg-gray-50 transition">
+          <div>
+            <div class="text-[15px] font-medium text-red-500">清空所有数据 / 恢复空白</div>
+            <div class="text-[12px] text-gray-400">清空所有习惯与打卡记录，从零开始记录</div>
+          </div>
+          <span class="text-gray-400">›</span>
+        </button>
+      </div>
+<!-- ... existing code ... -->
+    // 生成底部 24 个圆点矩阵（还原截图底部时间轴）
+    function renderDotMatrix(habit, theme) {
+      // 共 24 个点：前 14 个为过去日期，第 15 个为今天（索引 14），后 9 个为未来日期
+      const totalDots = 24;
+      const todayIndex = 14;
+      const dotsHtml = [];
+// ... existing code ... -->
+      return `
+        <div class="grid grid-cols-7 gap-1.5 pt-3 mt-1 border-t border-gray-100">
+          ${weekDates.map((d, idx) => {
+            const count = (habit.records && habit.records[d]) || 0;
+            const done = count >= (habit.dailyTarget || 1);
+            const isToday = d === today;
+            return `
+              <button
+                onclick="event.stopPropagation(); toggleDateCheck('${habit.id}', '${d}')"
+                class="flex flex-col items-center py-1.5 rounded-xl transition active:scale-90 ${isToday ? 'bg-gray-50 ring-1 ring-gray-200' : ''}">
+                <span class="text-[10px] text-gray-400 mb-1">${dayLabels[idx]}</span>
+                <span class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition"
+                  style="${done ? `background-color:${theme.main}; color:#fff;` : (count > 0 ? `background-color:${theme.iconBg}; color:${theme.main};` : 'background-color:#F2F2F7; color:#AEAEB2;')}">
+                  ${done ? '✓' : (count > 0 ? count : d.slice(-2))}
+                </span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // 月视图扩展组件（当月紧凑日历点阵）
+    function renderMonthExpanded(habit, theme) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const todayStr = getDateStr(now);
+
+      const cells = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const count = (habit.records && habit.records[dStr]) || 0;
+        const done = count >= (habit.dailyTarget || 1);
+        const isToday = dStr === todayStr;
+
+        cells.push(`
+          <button
+            onclick="event.stopPropagation(); toggleDateCheck('${habit.id}', '${dStr}')"
+            title="${dStr}"
+            class="h-6 rounded-lg flex items-center justify-center text-[10px] font-semibold transition active:scale-90 ${isToday ? 'ring-1 ring-[#111111]' : ''}"
+            style="${done ? `background-color:${theme.main}; color:#fff;` : (count > 0 ? `background-color:${theme.iconBg}; color:${theme.main};` : 'background-color:#F2F2F7; color:#8E8E93;')}">
+            ${d}
+          </button>
+        `);
+      }
+
+      return `
+        <div class="pt-3 mt-1 border-t border-gray-100">
+          <div class="flex items-center justify-between text-[11px] text-gray-400 mb-2">
+            <span>${year}年${month + 1}月打卡分布</span>
+            <span>点击日期可补卡</span>
+          </div>
+          <div class="grid grid-cols-10 gap-1">
+            ${cells.join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 年视图扩展组件（1-12月月份数字标注 + 年度贡献热力格）
+    function renderYearExpanded(habit, theme) {
+// ... existing code ... -->
+        // 截图核心视觉细节：当今日有进度时，卡片左侧出现柔和圆角竖条进度色块覆盖层
+        let overlayWidthPct = 0;
+        if (todayCount > 0) {
+          if (dailyTarget > 1) {
+            // 多次打卡习惯按今日完成比例展开（如 1/3 = 33.3%，2/3 = 66.7%，3/3 = 100%）
+            const dailyRatio = Math.min(1, todayCount / dailyTarget);
+            overlayWidthPct = Math.round(dailyRatio * 1000) / 10;
+          } else {
+            const ratio = Math.min(1, weekDoneCount / Math.max(1, weeklyTarget));
+            overlayWidthPct = Math.max(14, Math.round(ratio * 100));
+          }
+        }
+
+        // 副标题文案：如 "本周进度 1/7 天" 或 "本周进度 1/14"
+        const unitSuffix = habit.unit ? ` ${habit.unit}` : '';
+        const subtitle = `本周进度 ${weekDoneCount}/${weeklyTarget}${unitSuffix}`;
+
+        // 右侧按钮显示内容：今日全部目标达成时显示纯白立体圆环（或 ✓），未满额时显示当前次数
+        let orbInner = '';
+        if (isTodayDone) {
+          orbInner = dailyTarget > 1
+            ? `<span class="text-[16px] font-bold" style="color:${theme.main};">✓</span>`
+            : ``;
+        } else {
+          orbInner = `<span class="text-[16px] font-bold ${todayCount > 0 ? 'text-[#48484A]' : 'text-[#8E8E93]'}">${todayCount}</span>`;
+        }
+// ... existing code ... -->
+    // ==================== 8. 打卡交互逻辑 ====================
+    function handleCheckIn(habitId) {
+      const habit = state.habits.find(h => h.id === habitId);
+      if (!habit) return;
+
+      const today = getDateStr();
+      if (!habit.records) habit.records = {};
+      const current = habit.records[today] || 0;
+      const target = habit.dailyTarget || 1;
+
+      // 达到目标后再次点击归零（方便测试 1 -> 2 -> 3(✓) -> 0 循环体验）
+      let nextVal = current + 1;
+
+      if (current >= target) {
+        nextVal = 0;
+        delete habit.records[today];
+        showToast('已重置今日打卡次数');
+      } else {
+        habit.records[today] = nextVal;
+        const nowTime = `${today} ${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+        const logText = nextVal >= target
+          ? `完成今日目标 (${nextVal}/${target}) ✨`
+          : `完成 1 次打卡 (${nextVal}/${target})`;
+
+        state.logs.unshift({
+          id: 'l_' + Date.now(),
+          time: nowTime,
+          habitName: habit.name,
+          color: habit.color,
+          text: logText
+        });
+        if (state.logs.length > 100) state.logs.pop();
+
+        showToast(nextVal >= target ? `🎉 ${habit.name} 今日达成！` : `✓ +1 (${nextVal}/${target})`);
+      }
+
+      saveState();
+      renderHabitList();
+// ... existing code ... -->
+    function confirmResetDemo() {
+      openUtilityModal(`
+        <h3 class="text-[17px] font-bold text-[#111111] mb-1.5">清空所有数据？</h3>
+        <p class="text-[13px] text-gray-500 mb-4">当前所有习惯与打卡记录将被清空并恢复空白状态，建议先导出备份。</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="closeUtilityModal()" class="py-2.5 rounded-xl bg-[#F5F5F7] text-gray-700 font-semibold text-[14px]">取消</button>
+          <button onclick="executeResetDemo()" class="py-2.5 rounded-xl bg-red-500 text-white font-semibold text-[14px]">确认清空</button>
+        </div>
+      `);
+    }
+
+    function executeResetDemo() {
+      state = createEmptyState();
+      saveState();
+      renderCategoryBar();
+      renderHabitList();
+      closeUtilityModal();
+      showToast('已清空所有数据');
+    }
+
+    function restoreDemoHabit() {
+      state = createDefaultState();
+      saveState();
+      renderCategoryBar();
+      renderHabitList();
+      showToast('已加载测试任务「每日喝水」');
+    }
+
+    function escapeHtml(str) {
+// ... existing code ... -->
