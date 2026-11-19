@@ -1,276 +1,248 @@
-<!-- ... existing code ... -->
-    // ==================== 3. 应用状态与本地持久化 ====================
-    const STORAGE_KEY = 'habitmark_ios_data_v1';
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="HabitMark" />
+  <title>HabitMark</title>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card: #ffffff;
+      --text: #111111;
+      --muted: #6e6e73;
+      --line: #e5e5ea;
+      --accent: #007aff;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(96px, env(safe-area-inset-bottom));
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .brand { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+    .brand span { color: #ff5a36; }
+    .btn-plus {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: none; background: #fff; font-size: 22px; line-height: 1;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06); cursor: pointer;
+    }
+    .chips {
+      display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px;
+    }
+    .chip {
+      padding: 6px 14px; border-radius: 999px; border: none;
+      background: #e9e9ee; color: #333; font-size: 13px; font-weight: 600; cursor: pointer;
+      white-space: nowrap;
+    }
+    .chip.active { background: #111; color: #fff; }
+    .card {
+      position: relative; overflow: hidden;
+      background: var(--card); border-radius: 22px; padding: 16px;
+      margin-bottom: 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.04);
+    }
+    .progress-fill {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      background: linear-gradient(90deg, rgba(56,189,248,0.22), rgba(56,189,248,0.06));
+      transition: width 0.25s ease; pointer-events: none;
+    }
+    .card-top {
+      position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .left { display: flex; align-items: center; gap: 12px; }
+    .icon-box {
+      width: 44px; height: 44px; border-radius: 14px;
+      background: #e0f2fe; color: #0284c7;
+      display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
+    }
+    .title { font-size: 17px; font-weight: 700; }
+    .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .check-btn {
+      width: 42px; height: 42px; border-radius: 50%;
+      border: 1.5px solid #d1d1d6; background: #fff;
+      font-size: 16px; font-weight: 700; color: #111; cursor: pointer;
+    }
+    .dots {
+      position: relative; display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px;
+      margin-top: 14px;
+    }
+    .dot { height: 6px; border-radius: 999px; background: #e5e5ea; }
+    .dot.done { background: #0284c7; }
+    .year-box {
+      position: relative; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f0f0f3;
+    }
+    .months-row {
+      display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px;
+      text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 6px;
+    }
+    .year-grid {
+      display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px;
+    }
+    .m-col { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+    .cell { width: 10px; height: 10px; border-radius: 2px; background: #ececf0; }
+    .cell.on { background: #0284c7; }
+    .view-bar { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .mini-btn {
+      padding: 5px 10px; border-radius: 10px; border: 1px solid var(--line);
+      background: #fff; font-size: 12px; cursor: pointer;
+    }
+    .mini-btn.active { border-color: #111; background: #111; color: #fff; }
+    .tabbar {
+      position: fixed; left: 16px; right: 16px; bottom: max(12px, env(safe-area-inset-bottom));
+      background: rgba(255,255,255,0.92); backdrop-filter: blur(16px);
+      border-radius: 999px; padding: 8px 14px;
+      display: flex; justify-content: space-around;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    .tab { border: none; background: transparent; font-size: 12px; color: var(--muted); font-weight: 600; }
+    .tab.active { color: #111; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">Habit<span>Mark</span></div>
+    <button class="btn-plus" onclick="addHabit()" title="添加习惯">+</button>
+  </div>
 
-    // 生成测试习惯全年模拟打卡记录（2026年1月至今，今日完成 1/3）
-    function generateTestHabitRecords() {
+  <div class="view-bar" id="viewBar">
+    <button class="mini-btn active" data-v="simple" onclick="setView('simple')">简约</button>
+    <button class="mini-btn" data-v="year" onclick="setView('year')">年视图 (1-12月)</button>
+  </div>
+
+  <div class="chips" id="chips"></div>
+  <div id="list"></div>
+
+  <div class="tabbar">
+    <button class="tab active">习惯</button>
+    <button class="tab" onclick="resetDemo()">重置测试任务</button>
+  </div>
+
+  <script>
+    const KEY = 'habitmark_single_v1';
+    const todayKey = () => new Date().toISOString().slice(0, 10);
+
+    function defaultData() {
       const records = {};
       const now = new Date();
-      const year = now.getFullYear();
-      const todayStr = getDateStr(now);
-
-      // 遍历今年1月1日到昨天，生成规律且自然的打卡记录
-      const start = new Date(year, 0, 1);
-      const cursor = new Date(start);
-      let dayIndex = 0;
-
-      while (cursor < now) {
-        const dStr = getDateStr(cursor);
-        if (dStr !== todayStr) {
-          // 约 75% 的日子有打卡，部分达到 3/3 满额，部分为 1~2 次
-          const seed = (dayIndex * 17 + cursor.getMonth() * 7 + cursor.getDate() * 3) % 10;
-          if (seed < 5) {
-            records[dStr] = 3;
-          } else if (seed < 8) {
-            records[dStr] = (seed % 2) + 1;
-          }
-        }
-        cursor.setDate(cursor.getDate() + 1);
-        dayIndex++;
+      for (let i = 0; i < 60; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        const k = d.toISOString().slice(0, 10);
+        records[k] = i === 0 ? 1 : (i % 3 === 0 ? 3 : (i % 2 === 0 ? 2 : 0));
       }
-
-      // 今日默认完成 1/3，方便直观展示左侧 1/3 晴空蓝进度填充与右侧 "1" 打卡钮
-      records[todayStr] = 1;
-      return records;
-    }
-
-    function createDefaultState() {
-      const todayStr = getDateStr();
-      const now = new Date();
-      const timeStr = `${todayStr} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
       return {
-        categories: ['全部', '健康', '工作', '赚钱', '运动'],
-        activeCategory: '全部',
-        viewMode: 'simple', // 'simple' | 'week' | 'month' | 'year'
-        compactMode: false,
+        view: 'simple',
+        category: '全部',
+        categories: ['全部', '健康', '工作', '运动'],
         habits: [
-          {
-            id: 'h_demo_water',
-            name: '每日喝水',
-            category: '健康',
-            dailyTarget: 3,
-            weeklyTarget: 21,
-            unit: '次',
-            color: 'blue',
-            icon: 'water',
-            records: generateTestHabitRecords()
-          }
-        ],
-        logs: [
-          {
-            id: 'l_demo_1',
-            time: timeStr,
-            habitName: '每日喝水',
-            color: 'blue',
-            text: '完成 1 次打卡 (1/3)'
-          }
+          { id: 'water', name: '每日喝水', category: '健康', target: 3, records }
         ]
       };
     }
 
-    function createEmptyState() {
-      return {
-        categories: ['全部', '健康', '工作', '赚钱', '运动'],
-        activeCategory: '全部',
-        viewMode: 'simple',
-        compactMode: false,
-        habits: [],
-        logs: []
-      };
+    let state = JSON.parse(localStorage.getItem(KEY) || 'null') || defaultData();
+    function save() { localStorage.setItem(KEY, JSON.stringify(state)); render(); }
+    function setView(v) { state.view = v; save(); }
+    function setCat(c) { state.category = c; save(); }
+
+    function stepHabit(id) {
+      const h = state.habits.find(x => x.id === id);
+      if (!h) return;
+      const k = todayKey();
+      const cur = h.records[k] || 0;
+      h.records[k] = cur >= h.target ? 0 : cur + 1;
+      save();
     }
 
-    let state = loadState();
-// ... existing code ... -->
-        <button onclick="openImportModal()" class="w-full px-4 py-3.5 flex items-center justify-between text-left active:bg-gray-50 transition">
-          <div>
-            <div class="text-[15px] font-medium text-[#111111]">恢复备份数据</div>
-            <div class="text-[12px] text-gray-400">粘贴之前导出的 JSON 数据进行恢复</div>
-          </div>
-          <span class="text-gray-400">›</span>
-        </button>
+    function addHabit() {
+      const name = prompt('输入新习惯名称（如：早起、阅读）：');
+      if (!name || !name.trim()) return;
+      state.habits.push({
+        id: 'h_' + Date.now(),
+        name: name.trim(),
+        category: state.category === '全部' ? '健康' : state.category,
+        target: 1,
+        records: {}
+      });
+      save();
+    }
 
-        <button onclick="restoreDemoHabit()" class="w-full px-4 py-3.5 flex items-center justify-between text-left active:bg-gray-50 transition">
-          <div>
-            <div class="text-[15px] font-medium text-[#4A89F3]">加载测试任务（每日喝水）</div>
-            <div class="text-[12px] text-gray-400">生成含全年打卡数据的示例习惯，方便预览各视图</div>
-          </div>
-          <span class="text-gray-400">›</span>
-        </button>
+    function resetDemo() {
+      state = defaultData();
+      save();
+    }
 
-        <button onclick="confirmResetDemo()" class="w-full px-4 py-3.5 flex items-center justify-between text-left active:bg-gray-50 transition">
-          <div>
-            <div class="text-[15px] font-medium text-red-500">清空所有数据 / 恢复空白</div>
-            <div class="text-[12px] text-gray-400">清空所有习惯与打卡记录，从零开始记录</div>
-          </div>
-          <span class="text-gray-400">›</span>
-        </button>
-      </div>
-<!-- ... existing code ... -->
-    // 生成底部 24 个圆点矩阵（还原截图底部时间轴）
-    function renderDotMatrix(habit, theme) {
-      // 共 24 个点：前 14 个为过去日期，第 15 个为今天（索引 14），后 9 个为未来日期
-      const totalDots = 24;
-      const todayIndex = 14;
-      const dotsHtml = [];
-// ... existing code ... -->
+    function renderYearGrid(h) {
+      const year = new Date().getFullYear();
+      let cols = '';
+      for (let m = 0; m < 12; m++) {
+        const days = new Date(year, m + 1, 0).getDate();
+        let cells = '';
+        for (let d = 1; d <= Math.min(days, 10); d++) {
+          const dk = `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const on = (h.records[dk] || 0) > 0 ? 'on' : '';
+          cells += `<div class="cell ${on}"></div>`;
+        }
+        cols += `<div class="m-col">${cells}</div>`;
+      }
+      const months = Array.from({ length: 12 }, (_, i) => `<div>${i + 1}</div>`).join('');
       return `
-        <div class="grid grid-cols-7 gap-1.5 pt-3 mt-1 border-t border-gray-100">
-          ${weekDates.map((d, idx) => {
-            const count = (habit.records && habit.records[d]) || 0;
-            const done = count >= (habit.dailyTarget || 1);
-            const isToday = d === today;
-            return `
-              <button
-                onclick="event.stopPropagation(); toggleDateCheck('${habit.id}', '${d}')"
-                class="flex flex-col items-center py-1.5 rounded-xl transition active:scale-90 ${isToday ? 'bg-gray-50 ring-1 ring-gray-200' : ''}">
-                <span class="text-[10px] text-gray-400 mb-1">${dayLabels[idx]}</span>
-                <span class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition"
-                  style="${done ? `background-color:${theme.main}; color:#fff;` : (count > 0 ? `background-color:${theme.iconBg}; color:${theme.main};` : 'background-color:#F2F2F7; color:#AEAEB2;')}">
-                  ${done ? '✓' : (count > 0 ? count : d.slice(-2))}
-                </span>
-              </button>
-            `;
-          }).join('')}
+        <div class="year-box">
+          <div class="months-row">${months}</div>
+          <div class="year-grid">${cols}</div>
         </div>
       `;
     }
 
-    // 月视图扩展组件（当月紧凑日历点阵）
-    function renderMonthExpanded(habit, theme) {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const todayStr = getDateStr(now);
+    function render() {
+      document.querySelectorAll('#viewBar .mini-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.v === state.view);
+      });
 
-      const cells = [];
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const count = (habit.records && habit.records[dStr]) || 0;
-        const done = count >= (habit.dailyTarget || 1);
-        const isToday = dStr === todayStr;
+      document.getElementById('chips').innerHTML = state.categories.map(c =>
+        `<button class="chip ${state.category === c ? 'active' : ''}" onclick="setCat('${c}')">${c}</button>`
+      ).join('');
 
-        cells.push(`
-          <button
-            onclick="event.stopPropagation(); toggleDateCheck('${habit.id}', '${dStr}')"
-            title="${dStr}"
-            class="h-6 rounded-lg flex items-center justify-center text-[10px] font-semibold transition active:scale-90 ${isToday ? 'ring-1 ring-[#111111]' : ''}"
-            style="${done ? `background-color:${theme.main}; color:#fff;` : (count > 0 ? `background-color:${theme.iconBg}; color:${theme.main};` : 'background-color:#F2F2F7; color:#8E8E93;')}">
-            ${d}
-          </button>
-        `);
-      }
+      const k = todayKey();
+      const filtered = state.habits.filter(h => state.category === '全部' || h.category === state.category);
 
-      return `
-        <div class="pt-3 mt-1 border-t border-gray-100">
-          <div class="flex items-center justify-between text-[11px] text-gray-400 mb-2">
-            <span>${year}年${month + 1}月打卡分布</span>
-            <span>点击日期可补卡</span>
+      document.getElementById('list').innerHTML = filtered.map(h => {
+        const count = h.records[k] || 0;
+        const pct = Math.min(100, Math.round((count / h.target) * 100));
+        const label = count >= h.target ? '✓' : String(count);
+        const dots = Array.from({ length: 12 }, (_, i) =>
+          `<div class="dot ${i < count * 4 ? 'done' : ''}"></div>`
+        ).join('');
+        return `
+          <div class="card">
+            <div class="progress-fill" style="width:${pct}%"></div>
+            <div class="card-top">
+              <div class="left">
+                <div class="icon-box">💧</div>
+                <div>
+                  <div class="title">${h.name}</div>
+                  <div class="sub">今日进度 ${count}/${h.target} · ${h.category}</div>
+                </div>
+              </div>
+              <button class="check-btn" onclick="stepHabit('${h.id}')">${label}</button>
+            </div>
+            ${state.view === 'year' ? renderYearGrid(h) : `<div class="dots">${dots}</div>`}
           </div>
-          <div class="grid grid-cols-10 gap-1">
-            ${cells.join('')}
-          </div>
-        </div>
-      `;
+        `;
+      }).join('') || '<div class="card"><div class="sub">当前分类暂无习惯，点击右上角 + 添加。</div></div>';
     }
 
-    // 年视图扩展组件（1-12月月份数字标注 + 年度贡献热力格）
-    function renderYearExpanded(habit, theme) {
-// ... existing code ... -->
-        // 截图核心视觉细节：当今日有进度时，卡片左侧出现柔和圆角竖条进度色块覆盖层
-        let overlayWidthPct = 0;
-        if (todayCount > 0) {
-          if (dailyTarget > 1) {
-            // 多次打卡习惯按今日完成比例展开（如 1/3 = 33.3%，2/3 = 66.7%，3/3 = 100%）
-            const dailyRatio = Math.min(1, todayCount / dailyTarget);
-            overlayWidthPct = Math.round(dailyRatio * 1000) / 10;
-          } else {
-            const ratio = Math.min(1, weekDoneCount / Math.max(1, weeklyTarget));
-            overlayWidthPct = Math.max(14, Math.round(ratio * 100));
-          }
-        }
-
-        // 副标题文案：如 "本周进度 1/7 天" 或 "本周进度 1/14"
-        const unitSuffix = habit.unit ? ` ${habit.unit}` : '';
-        const subtitle = `本周进度 ${weekDoneCount}/${weeklyTarget}${unitSuffix}`;
-
-        // 右侧按钮显示内容：今日全部目标达成时显示纯白立体圆环（或 ✓），未满额时显示当前次数
-        let orbInner = '';
-        if (isTodayDone) {
-          orbInner = dailyTarget > 1
-            ? `<span class="text-[16px] font-bold" style="color:${theme.main};">✓</span>`
-            : ``;
-        } else {
-          orbInner = `<span class="text-[16px] font-bold ${todayCount > 0 ? 'text-[#48484A]' : 'text-[#8E8E93]'}">${todayCount}</span>`;
-        }
-// ... existing code ... -->
-    // ==================== 8. 打卡交互逻辑 ====================
-    function handleCheckIn(habitId) {
-      const habit = state.habits.find(h => h.id === habitId);
-      if (!habit) return;
-
-      const today = getDateStr();
-      if (!habit.records) habit.records = {};
-      const current = habit.records[today] || 0;
-      const target = habit.dailyTarget || 1;
-
-      // 达到目标后再次点击归零（方便测试 1 -> 2 -> 3(✓) -> 0 循环体验）
-      let nextVal = current + 1;
-
-      if (current >= target) {
-        nextVal = 0;
-        delete habit.records[today];
-        showToast('已重置今日打卡次数');
-      } else {
-        habit.records[today] = nextVal;
-        const nowTime = `${today} ${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
-        const logText = nextVal >= target
-          ? `完成今日目标 (${nextVal}/${target}) ✨`
-          : `完成 1 次打卡 (${nextVal}/${target})`;
-
-        state.logs.unshift({
-          id: 'l_' + Date.now(),
-          time: nowTime,
-          habitName: habit.name,
-          color: habit.color,
-          text: logText
-        });
-        if (state.logs.length > 100) state.logs.pop();
-
-        showToast(nextVal >= target ? `🎉 ${habit.name} 今日达成！` : `✓ +1 (${nextVal}/${target})`);
-      }
-
-      saveState();
-      renderHabitList();
-// ... existing code ... -->
-    function confirmResetDemo() {
-      openUtilityModal(`
-        <h3 class="text-[17px] font-bold text-[#111111] mb-1.5">清空所有数据？</h3>
-        <p class="text-[13px] text-gray-500 mb-4">当前所有习惯与打卡记录将被清空并恢复空白状态，建议先导出备份。</p>
-        <div class="grid grid-cols-2 gap-2">
-          <button onclick="closeUtilityModal()" class="py-2.5 rounded-xl bg-[#F5F5F7] text-gray-700 font-semibold text-[14px]">取消</button>
-          <button onclick="executeResetDemo()" class="py-2.5 rounded-xl bg-red-500 text-white font-semibold text-[14px]">确认清空</button>
-        </div>
-      `);
-    }
-
-    function executeResetDemo() {
-      state = createEmptyState();
-      saveState();
-      renderCategoryBar();
-      renderHabitList();
-      closeUtilityModal();
-      showToast('已清空所有数据');
-    }
-
-    function restoreDemoHabit() {
-      state = createDefaultState();
-      saveState();
-      renderCategoryBar();
-      renderHabitList();
-      showToast('已加载测试任务「每日喝水」');
-    }
-
-    function escapeHtml(str) {
-// ... existing code ... -->
+    render();
+  </script>
+</body>
+</html>
